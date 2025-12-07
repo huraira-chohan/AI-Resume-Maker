@@ -7,7 +7,7 @@ import json
 from datetime import date
 
 # === CONFIG ===
-genai.configure(api_key=st.secrets.get("GEMINI_KEY", "YOUR_KEY_HERE_IF_NOT_USING_SECRETS"))
+genai.configure(api_key=st.secrets.get("GEMINI_KEY", "AIzaSyBt65Uf-5n-g_m_4LnZpZ-iCGE9Maa09rw"))
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 st.set_page_config(page_title="Free AI Resume Tailorer", page_icon="Resume")
