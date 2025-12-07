@@ -1,22 +1,30 @@
 import streamlit as st
-import google.generativeai as genai
 from fpdf import FPDF
 from io import BytesIO
 
-# === GEMINI SETUP (safe + error-proof) ===
+# Import Google stuff safely
 try:
+    import google.generativeai as genai
+    from google.api_core.exceptions import NotFound  # Specific import for NotFound
     genai.configure(api_key=st.secrets["GEMINI_KEY"])
-except:
-    st.error("🚨 Add your Gemini API key in Streamlit Secrets → GEMINI_KEY (get free at aistudio.google.com/app/apikey)")
+    model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
+    GEMINI_READY = True
+except ImportError as e:
+    st.error(f"Google API package missing: {e}. Add 'google-api-core' to requirements.txt and redeploy.")
+    GEMINI_READY = False
     st.stop()
-
-# Use the updated, stable model name (fixes 404 NotFound)
-model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
+except Exception as e:
+    st.error(f"Gemini setup error: {e}. Check your API key in Secrets.")
+    GEMINI_READY = False
+    st.stop()
 
 # === PAGE SETUP ===
 st.set_page_config(page_title="Free Resume Tailorer", page_icon="📄", layout="wide")
 st.title("📄 Free AI Resume Tailorer – Pakistan Edition")
 st.markdown("**Paste any job description → fill your details → get perfect ATS resume in 15 seconds. 100% FREE, no PDF upload needed**")
+
+if not GEMINI_READY:
+    st.stop()
 
 # === INPUTS ===
 jd = st.text_area("Paste the full Job Description (Rozee.pk, LinkedIn, Mustakbil, etc.)", height=150)
@@ -88,12 +96,12 @@ if st.button("Generate Perfect Resume – 100% FREE") and jd:
             )
             st.balloons()
 
+        except NotFound:
+            st.error("Model not found (404). Regenerate your API key at aistudio.google.com and ensure it has Gemini 1.5 Flash access.")
         except genai.types.BlockedPromptException:
-            st.error("Prompt blocked by safety filters—try simpler bullets.")
-        except google.api_core.exceptions.NotFound:
-            st.error("Model not found (404). Check your API key has access to Gemini 1.5 Flash. Try regenerating key at aistudio.google.com.")
+            st.error("Prompt blocked by safety filters—try shorter JD or simpler bullets.")
         except Exception as e:
-            st.error(f"API error: {str(e)}. If 404 persists, your key might need Vertex AI enabled in Google Cloud Console.")
+            st.error(f"API error: {str(e)}. Double-check your key and try again.")
 
 st.info("✨ Completely free • No login • Unlimited uses • Mobile-friendly")
 st.caption("Powered by Gemini 1.5 Flash | For Pakistani job seekers 🚀")
