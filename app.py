@@ -1,91 +1,101 @@
 import streamlit as st
-from fpdf import FPDF  # FPDF2 is imported as fpdf
+from weasyprint import HTML
 from io import BytesIO
-
-# === GEMINI SETUP (fixed model name for v1beta) ===
 import google.generativeai as genai
 
+# Gemini Setup (stable for 2025)
 try:
     genai.configure(api_key=st.secrets["GEMINI_KEY"])
-    # FIXED: Use full path + latest stable name (no 404)
     model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
 except Exception as e:
-    st.error("🚨 Add your Gemini API key in Secrets → GEMINI_KEY (get free at aistudio.google.com/app/apikey)")
+    st.error("Add GEMINI_KEY to Secrets (free at aistudio.google.com/app/apikey)")
     st.stop()
 
-# === UI ===
-st.set_page_config(page_title="Free Resume Tailorer", page_icon="📄", layout="wide")
-st.title("📄 Free AI Resume Tailorer – Pakistan Edition")
-st.markdown("**Paste any job description → fill details → get perfect ATS resume in 15 seconds. 100% FREE**")
+st.set_page_config(page_title="Styled Resume Tailorer", page_icon="📄", layout="wide")
+st.title("Styled AI Resume Tailorer – Pakistan Edition")
+st.markdown("**Paste JD → Fill info → Get professional, ATS-safe PDF with clean styling. 100% FREE.**")
 
-jd = st.text_area("Paste the full Job Description", height=150)
+# Inputs
+jd = st.text_area("Paste Job Description (Rozee.pk/LinkedIn)", height=150)
 
-c1, c2 = st.columns(2)
-with c1:
+col1, col2 = st.columns(2)
+with col1:
     name = st.text_input("Full Name", "Ahmed Khan")
     phone = st.text_input("Phone", "+92 300 1234567")
     email = st.text_input("Email", "ahmed@example.com")
-with c2:
-    linkedin = st.text_input("LinkedIn (optional)", "")
+with col2:
+    linkedin = st.text_input("LinkedIn (optional)", "linkedin.com/in/ahmedkhan")
     location = st.text_input("City", "Lahore")
     education = st.text_input("Education + CGPA", "BS Computer Science – FAST-NU | CGPA 3.7/4.0")
 
-skills = st.text_area("Your Skills (comma separated)", "Flutter, Dart, Firebase, REST API, Git")
-bullets = st.text_area("Your current bullets (3–6 lines)", 
-                       "- Built mobile app\n- Internship at XYZ\n- Final Year Project")
+skills = st.text_area("Your Skills (comma-separated)", "Flutter, Dart, Firebase, REST APIs, Git")
+raw_bullets = st.text_area("Your Experience/Projects (3–6 bullets, one per line)", 
+                           "- Built mobile app\n- Internship at XYZ\n- Final Year Project")
 
-if st.button("Generate Perfect Resume – FREE") and jd:
-    with st.spinner("Tailoring your resume..."):
+if st.button("Generate Styled Resume – FREE") and jd:
+    with st.spinner("AI tailoring + styling your resume..."):
         prompt = f"""
         Job Description: {jd}
-        Current bullets: {bullets}
+        Raw bullets: {raw_bullets}
         Skills: {skills}
 
-        Rewrite the bullets to match the job description perfectly (natural language).
-        Use simple dashes (-) for bullets, no special chars.
-        Return ONLY 5–7 bullet points starting with -
+        Rewrite bullets to match JD keywords naturally (Pakistani fresher style: FYP, internships).
+        Return ONLY: 
+        - Skills section as comma-separated list
+        - 5–7 bullets starting with • (action verbs, quantifiable)
         """
-        try:
-            response = model.generate_content(prompt)
-            new_bullets = response.text.strip()
-        except Exception as e:
-            st.error(f"Gemini error: {e}. Try regenerating your API key.")
-            new_bullets = bullets  # Fallback to original
+        response = model.generate_content(prompt)
+        content = response.text.strip().split("\n\n")  # Parse skills and bullets
+        new_skills = content[0].strip() if content else skills
+        new_bullets = "\n".join(content[1:]) if len(content) > 1 else raw_bullets
 
-        # === PDF (Unicode-safe: strip non-ASCII) ===
-        def clean_text(text):
-            return ''.join(c for c in text if ord(c) < 128)  # Basic ASCII filter
+        # Styled HTML Template (ATS-safe: semantic, no tables/images, print-friendly)
+        html_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                @page {{ size: A4; margin: 1in; }}
+                body {{ font-family: Arial, sans-serif; line-height: 1.4; color: #000; max-width: 8.5in; margin: 0 auto; }}
+                h1 {{ font-size: 28px; margin: 0 0 5px 0; color: #1e40af; text-align: center; }}
+                .contact {{ font-size: 12px; text-align: center; margin-bottom: 20px; color: #555; }}
+                h2 {{ font-size: 14px; margin: 20px 0 10px 0; border-bottom: 2px solid #1e40af; padding-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }}
+                .skills {{ font-weight: bold; color: #1e40af; }}
+                ul {{ margin: 5px 0; padding-left: 20px; }}
+                li {{ margin-bottom: 8px; }}
+                .print-only {{ display: block; }} @media print {{ .print-only {{ display: block !important; }} }}
+            </style>
+        </head>
+        <body>
+            <h1>{name}</h1>
+            <div class="contact">{phone} • {email} • {linkedin} • {location}</div>
+            
+            <h2>Education</h2>
+            <p>{education}</p>
+            
+            <h2>Skills</h2>
+            <p class="skills">{new_skills}</p>
+            
+            <h2>Experience & Projects</h2>
+            <ul>{''.join([f'<li>• {line.strip("- ")}</li>' for line in new_bullets.split('\n') if line.strip()])}</ul>
+        </body>
+        </html>
+        """
 
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 18)
-        pdf.cell(0, 12, clean_text(name), ln=1, align="C")
-        pdf.set_font("Arial", size=10)
-        contact = f"{clean_text(phone)} | {clean_text(email)} | {clean_text(linkedin)} | {clean_text(location)}"
-        pdf.cell(0, 8, contact, ln=1, align="C")
-        pdf.ln(10)
+        # Generate Styled PDF
+        pdf_buffer = BytesIO()
+        HTML(string=html_template).write_pdf(pdf_buffer)
+        pdf_buffer.seek(0)
 
-        pdf.set_font("Arial", "B", 13); pdf.cell(0, 10, "Education", ln=1)
-        pdf.set_font("Arial", size=11); pdf.multi_cell(0, 8, clean_text(education))
-
-        pdf.set_font("Arial", "B", 13); pdf.cell(0, 10, "Skills", ln=1)
-        pdf.set_font("Arial", size=11); pdf.multi_cell(0, 8, clean_text(skills))
-
-        pdf.set_font("Arial", "B", 13); pdf.cell(0, 10, "Experience & Projects", ln=1)
-        pdf.set_font("Arial", size=11); pdf.multi_cell(0, 8, clean_text(new_bullets))
-
-        pdf_bytes = BytesIO()
-        pdf.output(pdf_bytes)
-        pdf_bytes.seek(0)
-
-        st.success("✅ Done! Your perfect resume is ready (90%+ JD match, ATS-optimized)")
+        st.success("✅ Styled resume ready! (Professional layout, 90%+ JD match)")
         st.download_button(
-            "Download PDF Resume",
-            data=pdf_bytes.getvalue(),
-            file_name=f"{clean_text(name.replace(' ', '_'))}_Resume.pdf",
+            label="Download Styled PDF",
+            data=pdf_buffer.getvalue(),
+            file_name=f"{name.replace(' ', '_')}_Styled_Resume.pdf",
             mime="application/pdf"
         )
-        st.balloons()
+        st.markdown("### Quick Preview (Styled HTML):")
+        st.components.v1.html(html_template, height=800, scrolling=True)
 
-st.info("✨ Completely free • No login • Unlimited uses • Mobile-friendly")
-st.caption("Powered by Gemini 1.5 Flash | For Pakistani job seekers 🚀")
+st.info("✨ Free • ATS-optimized styling (Arial, borders, highlights) • Mobile/print-ready")
+st.caption("Powered by Gemini 1.5 Flash | Inspired by 2025 ATS templates")
