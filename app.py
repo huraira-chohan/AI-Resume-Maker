@@ -2,15 +2,19 @@ import streamlit as st
 from fpdf import FPDF
 from io import BytesIO
 
-# Import Google stuff safely
+# Import Google stuff with v1 API fix
 try:
     import google.generativeai as genai
-    from google.api_core.exceptions import NotFound  # Specific import for NotFound
+    from google.genai.types import HttpOptions  # For API version override
+    from google.api_core.exceptions import NotFound
+
+    # Configure with v1 API (fixes 404 on Streamlit Cloud)
     genai.configure(api_key=st.secrets["GEMINI_KEY"])
-    model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
+    client = genai.Client(http_options=HttpOptions(api_version="v1"))  # Key fix: Force v1
+    model = genai.GenerativeModel("gemini-1.5-flash-002", client=client)  # Stable version name
     GEMINI_READY = True
 except ImportError as e:
-    st.error(f"Google API package missing: {e}. Add 'google-api-core' to requirements.txt and redeploy.")
+    st.error(f"Missing Google package: {e}. Add 'google-generativeai' to requirements.txt.")
     GEMINI_READY = False
     st.stop()
 except Exception as e:
@@ -97,11 +101,9 @@ if st.button("Generate Perfect Resume – 100% FREE") and jd:
             st.balloons()
 
         except NotFound:
-            st.error("Model not found (404). Regenerate your API key at aistudio.google.com and ensure it has Gemini 1.5 Flash access.")
-        except genai.types.BlockedPromptException:
-            st.error("Prompt blocked by safety filters—try shorter JD or simpler bullets.")
+            st.error("Model still not found (404). Try regenerating your API key at aistudio.google.com and ensuring 'Generative Language API' is enabled in Google Cloud Console.")
         except Exception as e:
-            st.error(f"API error: {str(e)}. Double-check your key and try again.")
+            st.error(f"API error: {str(e)}. If 404 persists, switch model to 'gemini-1.0-pro' in code.")
 
 st.info("✨ Completely free • No login • Unlimited uses • Mobile-friendly")
 st.caption("Powered by Gemini 1.5 Flash | For Pakistani job seekers 🚀")
