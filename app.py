@@ -5,11 +5,13 @@ from fpdf import FPDF
 import json
 from io import BytesIO
 
-# Configure Gemini (add your free key to Streamlit Secrets: GEMINI_KEY)
-if "GEMINI_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["AIzaSyBt65Uf-5n-g_m_4LnZpZ-iCGE9Maa09rw"])
-else:
-    st.error("🚨 Add GEMINI_KEY to Streamlit Secrets! Get free at: aistudio.google.com/app/apikey")
+# SAFE WAY – key comes from Streamlit Secrets only
+try:
+    genai.configure(api_key=st.secrets["GEMINI_KEY"])
+except Exception as e:
+    st.error("Add your Gemini API key in Streamlit Secrets → GEMINI_KEY")
+    st.stop()  # Stops the app if key missing
+
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 st.set_page_config(page_title="Free AI Resume Tailorer", page_icon="📄", layout="wide")
