@@ -1,6 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
-from pypdf2 import PdfReader
+from PyPDF2 import PdfReader
 from io import BytesIO
 import weasyprint
 import json
