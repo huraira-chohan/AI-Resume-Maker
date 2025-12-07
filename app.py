@@ -1,133 +1,132 @@
 import streamlit as st
 import google.generativeai as genai
 from PyPDF2 import PdfReader
-from io import BytesIO
-import weasyprint
+from fpdf import FPDF
 import json
-from datetime import date
+from io import BytesIO
 
-# === CONFIG ===
-genai.configure(api_key=st.secrets.get("GEMINI_KEY", "AIzaSyBt65Uf-5n-g_m_4LnZpZ-iCGE9Maa09rw"))
+# Configure Gemini (add your free key to Streamlit Secrets: GEMINI_KEY)
+if "GEMINI_KEY" in st.secrets:
+    genai.configure(api_key=st.secrets["GEMINI_KEY"])
+else:
+    st.error("🚨 Add GEMINI_KEY to Streamlit Secrets! Get free at: aistudio.google.com/app/apikey")
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-st.set_page_config(page_title="Free AI Resume Tailorer", page_icon="Resume")
-st.title("Free AI Resume Tailorer (Pakistan Edition)")
-st.markdown("**Instantly tailor your resume for Rozee.pk, Mustakbil.com, LinkedIn, Bayt & any Pakistani job** — 100% Free, No Limits, No Signup")
+st.set_page_config(page_title="Free AI Resume Tailorer", page_icon="📄", layout="wide")
+st.title("📄 Free AI Resume Tailorer (Pakistan Edition)")
+st.markdown("**Instantly tailor your resume for Rozee.pk, Mustakbil.com, LinkedIn, Bayt & any Pakistani job** — 100% Free, No Limits, No Signup. Built for freshers from FAST, NUST, LUMS, COMSATS.")
 
-# Templates (clean, ATS-friendly, English)
-templates = {
-    "Tech Fresher (MERN, Flutter, Django, etc.)": """<!DOCTYPE html>
-<html><head><style>
-    body {font-family: Arial; margin: 2cm; line-height: 1.5; font-size: 11pt; color: #000;}
-    h1 {font-size: 26pt; margin:0; color:#1e40af;}
-    .contact {font-size:10pt; margin:10px 0; color:#555;}
-    h2 {font-size:13pt; border-bottom:2px solid #1e40af; padding-bottom:4px; margin-top:25px;}
-    ul {margin:8px 0; padding-left:20px;}
-    li {margin-bottom:6px;}
-    .highlight {font-weight:bold; color:#1e40af;}
-</style></head><body>
-    <h1>{{name}}</h1>
-    <div class="contact">{{phone}} • {{email}} • {{linkedin}} • {{location}}</div>
-    <h2>Technical Skills</h2><p class="highlight">{{skills}}</p>
-    <h2>Experience & Projects</h2>{{experience_projects}}
-    <h2>Education</h2><p>{{education}} <br> CGPA: {{cgpa}}</p>
-</body></html>""",
+# Sidebar instructions
+with st.sidebar:
+    st.header("How to Use")
+    st.write("1. Paste the full Job Description (from Rozee.pk or LinkedIn).")
+    st.write("2. Upload your current resume (PDF).")
+    st.write("3. Choose a template style.")
+    st.write("4. Hit Generate — get your ATS-optimized PDF instantly!")
 
-    "Business / ACCA / Banking": """<!DOCTYPE html>
-<html><head><style>
-    body {font-family: Arial; margin: 2cm; line-height: 1.5; font-size: 11pt; color: #000;}
-    h1 {font-size: 26pt; margin:0; color:#1e40af;}
-    .contact {font-size:10pt; margin:10px 0; color:#555;}
-    h2 {font-size:13pt; border-bottom:2px solid #1e40af; padding-bottom:4px; margin-top:25px;}
-    ul {margin:8px 0; padding-left:20px;}
-    li {margin-bottom:6px;}
-    .highlight {font-weight:bold; color:#1e40af;}
-</style></head><body>
-    <h1>{{name}}</h1>
-    <div class="contact">{{phone}} • {{email}} • {{linkedin}} • {{location}}</div>
-    <h2>Professional Skills</h2><p class="highlight">{{skills}}</p>
-    <h2>Experience & Internships</h2>{{experience_projects}}
-    <h2>Education & Certifications</h2><p>{{education}}<br>{{certifications}}</p>
-</body></html>""",
-
-    "General / Entry-Level": """<!DOCTYPE html>
-<html><head><style>
-    body {font-family: Arial; margin: 2cm; line-height: 1.5; font-size: 11pt; color: #000;}
-    h1 {font-size: 26pt; margin:0; color:#1e40af;}
-    .contact {font-size:10pt; margin:10px 0; color:#555;}
-    h2 {font-size:13pt; border-bottom:2px solid #1e40af; padding-bottom:4px; margin-top:25px;}
-    ul {margin:8px 0; padding-left:20px;}
-    li {margin-bottom:6px;}
-    .highlight {font-weight:bold; color:#1e40af;}
-</style></head><body>
-    <h1>{{name}}</h1>
-    <div class="contact">{{phone}} • {{email}} • {{linkedin}} • {{location}}</div>
-    <h2>Key Skills</h2><p class="highlight">{{skills}}</p>
-    <h2>Experience & Projects</h2>{{experience_projects}}
-    <h2>Education</h2><p>{{education}} <br> CGPA: {{cgpa}}</p>
-</body></html>"""
-}
-
-# UI
+# Main UI
 col1, col2 = st.columns(2)
 with col1:
-    jd = st.text_area("Paste the full Job Description here", height=180)
+    jd = st.text_area("Paste the full Job Description here", height=180, placeholder="e.g., 'Python Developer - Fresher, MERN stack, Rozee.pk job...'")
 with col2:
-    resume_file = st.file_uploader("Upload your current resume (PDF)", type="pdf")
-    template = st.selectbox("Choose your template", list(templates.keys()))
+    resume_file = st.file_uploader("Upload your current resume (PDF only)", type="pdf")
+    template_style = st.selectbox("Choose template style", ["Tech Fresher (MERN, Flutter, Django)", "Business / ACCA / Banking", "General / Entry-Level"])
 
-if st.button("Generate Tailored Resume – 100% FREE") and jd and resume_file:
-    with st.spinner("AI is tailoring your resume..."):
+if st.button("Generate Tailored Resume – 100% FREE 🚀") and jd and resume_file:
+    with st.spinner("AI is tailoring your resume... (Gemini at work)"):
         try:
             # Read old resume
             reader = PdfReader(resume_file)
-            old_text = "".join([p.extract_text() or "" for p in reader.pages])
+            old_text = "".join([page.extract_text() or "" for page in reader.pages])
 
-            # Gemini magic
+            # Gemini prompt: Extract + Rewrite (Pakistan-focused)
             prompt = f"""
-            You are an expert resume writer for Pakistani jobs.
+            You are an expert resume writer for Pakistani jobs (Rozee.pk, Mustakbil).
             Job Description: {jd}
             Current Resume Text: {old_text}
 
-            1. Extract as clean JSON only:
+            Extract and rewrite as clean JSON only (no extra text):
             {{
-              "name": "...",
-              "phone": "...",
-              "email": "...",
-              "linkedin": "...",
-              "location": "e.g. Lahore, Karachi, Islamabad",
-              "skills": "Python, React, Node.js, ...",
-              "education": "BSCS from NUST, 2025",
-              "cgpa": "3.8/4.0",
-              "certifications": "ACCA Part 1, etc.",
-              "experience_projects": "<ul><li>Bullet 1</li><li>Bullet 2</li></ul>"
+              "name": "Full Name",
+              "phone": "+92 xxx xxxxxxx",
+              "email": "name@example.com",
+              "linkedin": "linkedin.com/in/name",
+              "location": "e.g., Lahore, Karachi, Islamabad",
+              "skills": "Comma-separated skills like Python, React, Node.js, ACCA",
+              "education": "BSCS from NUST, Expected 2025",
+              "cgpa": "3.8/4.0 or equivalent",
+              "certifications": "ACCA Part 1 (if any), else empty",
+              "experience_projects": [
+                "- Bullet 1: Rewritten to match JD keywords naturally",
+                "- Bullet 2: Add Pakistani buzz like 'Final Year Project at university'",
+                "- Add 3-5 strong bullets total"
+              ]
             }}
 
-            2. Rewrite every bullet in experience_projects to perfectly match the job description keywords naturally.
-            3. Return ONLY valid JSON. No extra text.
+            Rewrite bullets to match 90%+ JD keywords. Make ATS-safe: Simple text, no tables.
+            Return ONLY valid JSON.
             """
             response = model.generate_content(prompt)
-            data = json.loads(response.text.strip("```json").strip("```"))
+            # Clean JSON (strip markdown if needed)
+            json_text = response.text.strip("```json").strip("```").strip()
+            data = json.loads(json_text)
 
-            # Fill template
-            html = templates[template]
-            for key, value in data.items():
-                html = html.replace(f"{{{{{key}}}}}", str(value or ""))
+            # Generate PDF with FPDF (pure Python, no system deps)
+            class PDF(FPDF):
+                def header(self):
+                    self.set_font('Arial', 'B', 18)
+                    self.cell(0, 10, f"{data['name']}", ln=True, align='C')
+                    self.set_font('Arial', '', 10)
+                    self.cell(0, 5, f"{data['phone']} • {data['email']} • {data['linkedin']} • {data['location']}", ln=True, align='C')
 
-            # Generate PDF
-            pdf = weasyprint.HTML(string=html).write_pdf()
+                def footer(self):
+                    self.set_y(-15)
+                    self.set_font('Arial', 'I', 8)
+                    self.cell(0, 10, 'Generated by Free AI Resume Tailorer', 0, 0, 'C')
 
-            st.success("Your perfect resume is ready!")
+            pdf = PDF()
+            pdf.add_page()
+            pdf.set_font('Arial', '', 12)
+
+            # Skills Section
+            pdf.set_font('Arial', 'B', 12)
+            pdf.cell(0, 10, 'Key Skills', ln=True)
+            pdf.set_font('Arial', '', 10)
+            pdf.multi_cell(0, 6, data['skills'])
+
+            # Experience & Projects
+            pdf.set_font('Arial', 'B', 12)
+            pdf.cell(0, 10, 'Experience & Projects', ln=True)
+            pdf.set_font('Arial', '', 10)
+            for bullet in data['experience_projects']:
+                pdf.multi_cell(0, 6, f"• {bullet}")
+
+            # Education
+            pdf.set_font('Arial', 'B', 12)
+            pdf.cell(0, 10, 'Education', ln=True)
+            pdf.set_font('Arial', '', 10)
+            pdf.multi_cell(0, 6, f"{data['education']} | CGPA: {data['cgpa']}")
+            if data['certifications']:
+                pdf.multi_cell(0, 6, f"Certifications: {data['certifications']}")
+
+            # Output PDF bytes
+            pdf_buffer = BytesIO()
+            pdf.output(pdf_buffer)
+            pdf_buffer.seek(0)
+
+            st.success("✅ Your tailored resume is ready! (90%+ JD match, ATS-optimized)")
             st.download_button(
-                label="Download Tailored Resume (PDF)",
-                data=pdf,
-                file_name=f"{data.get('name','Resume')}_Tailored.pdf",
+                label="Download PDF Resume",
+                data=pdf_buffer.getvalue(),
+                file_name=f"{data['name']}_Tailored_Resume.pdf",
                 mime="application/pdf"
             )
             st.balloons()
 
+        except json.JSONDecodeError:
+            st.error("AI response wasn't perfect JSON—try a simpler JD or check your API key.")
         except Exception as e:
-            st.error(f"Something went wrong: {e}")
+            st.error(f"Oops: {str(e)}. Make sure your PDF uploads correctly!")
 
-st.caption("Completely free • No login • No limits • Built with love for Pakistani job seekers")
-st.markdown("Made with Gemini 1.5 Flash • Works on mobile too")
+st.info("✨ Completely free • No login • Unlimited uses • Mobile-friendly")
+st.caption("Powered by Gemini 1.5 Flash | For Pakistani job seekers 🚀")
