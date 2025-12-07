@@ -1,3 +1,4 @@
+# config.py
 import streamlit as st
 import google.generativeai as genai
 from google.api_core.exceptions import ResourceExhausted
@@ -6,24 +7,26 @@ import random
 
 try:
     genai.configure(api_key=st.secrets["GEMINI_KEY"])
-    MODEL = genai.GenerativeModel("gemini-2.0-flash")  # Stable model
-except Exception as e:
-    st.error(f"Setup error: {e}. Check key at aistudio.google.com/app/apikey")
-    st.stop()
+    
+    # THIS MODEL WORKS RIGHT NOW (Dec 2025)
+    MODEL = genai.GenerativeModel("gemini-1.5-flash")
 
-# Add retry decorator for generate_content
-def with_retry(func):
-    def wrapper(*args, **kwargs):
-        max_retries = 3
-        for attempt in range(max_retries):
+    # Add automatic retry for 429 quota errors
+    original_generate = MODEL.generate_content
+
+    def generate_with_retry(*args, **kwargs):
+        for attempt in range(4):  # 4 attempts total
             try:
-                return func(*args, **kwargs)
+                return original_generate(*args, **kwargs)
             except ResourceExhausted:
-                if attempt < max_retries - 1:
-                    wait = (2 ** attempt) + random.uniform(0, 1)  # Exponential backoff
-                    time.sleep(wait)
-                    continue
-                raise
-    return wrapper
+                if attempt == 3:
+                    raise
+                wait = (2 ** attempt) + random.uniform(0, 1)
+                time.sleep(wait)
+        return original_generate(*args, **kwargs)
 
-MODEL.generate_content = with_retry(MODEL.generate_content)
+    MODEL.generate_content = generate_with_retry
+
+except Exception as e:
+    st.error("Check your GEMINI_KEY in Secrets → https://aistudio.google.com/app/apikey")
+    st.stop()
