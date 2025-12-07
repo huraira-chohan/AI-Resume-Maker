@@ -1,8 +1,7 @@
 import streamlit as st
 from config import MODEL
 from prompts import get_resume_prompt
-from templates import get_styled_html
-from utils import generate_pdf
+from utils import generate_pdf  # ← Now uses fpdf2 (safe on Streamlit Cloud)
 
 st.set_page_config(page_title="PakResume AI", page_icon="Resume", layout="centered")
 st.title("PakResume AI — Professional & Styled")
@@ -29,8 +28,17 @@ if st.button("Generate Professional Resume", type="primary") and jd:
         response = MODEL.generate_content(prompt)
         new_bullets = response.text.strip()
 
-        html = get_styled_html(name, phone, email, linkedin, location, education, skills, new_bullets)
-        pdf_buffer = generate_pdf(html)
+        # Pass data directly to utils.generate_pdf (no HTML needed anymore)
+        pdf_buffer = generate_pdf(
+            name=name,
+            phone=phone,
+            email=email,
+            linkedin=linkedin,
+            location=location,
+            education=education,
+            skills=skills,
+            bullets=new_bullets
+        )
 
         st.success("Done! Here's your beautiful resume")
         st.download_button(
