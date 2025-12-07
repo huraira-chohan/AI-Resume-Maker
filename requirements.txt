@@ -1,4 +1,5 @@
 streamlit
 google-generativeai
-PyPDF2
-weasyprint
+PyPDF2==3.0.1
+weasyprint==61.2
+pydantic==2.9.2
