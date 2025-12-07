@@ -7,7 +7,7 @@ from io import BytesIO
 
 # Configure Gemini (add your free key to Streamlit Secrets: GEMINI_KEY)
 if "GEMINI_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GEMINI_KEY"])
+    genai.configure(api_key=st.secrets["AIzaSyBt65Uf-5n-g_m_4LnZpZ-iCGE9Maa09rw"])
 else:
     st.error("🚨 Add GEMINI_KEY to Streamlit Secrets! Get free at: aistudio.google.com/app/apikey")
 model = genai.GenerativeModel("gemini-1.5-flash")
